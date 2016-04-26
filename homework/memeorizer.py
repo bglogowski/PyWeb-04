@@ -1,3 +1,4 @@
+
 """
 For your homework this week, you'll be creating a new WSGI application.
 
@@ -25,7 +26,7 @@ new 'Bottom Text' and observe the network requests being made, and note
 the imageID for the Ancient Aliens meme.
 
 TODO #1:
-The imageID for the Ancient Aliens meme is:
+The imageID for the Ancient Aliens meme is: 235894
 
 You will also need a way to identify headlines on the CNN page using
 BeautifulSoup. On the 'Unnecessary Knowledge Page', our fact was
@@ -100,16 +101,22 @@ To submit your homework:
 
 from bs4 import BeautifulSoup
 import requests
+import random
 
-def meme_it(fact):
+def meme_it(fact, meme):
+
+    if meme == 'buzz':
+        imageid = 2097248
+    else:
+        imageid = 235894
+
     url = 'http://cdn.meme.am/Instance/Preview'
     params = {
-        'imageID': 2097248,
+        'imageID': imageid,
         'text1': fact
     }
 
     response = requests.get(url, params)
-
     return response.content
 
 
@@ -118,18 +125,45 @@ def parse_fact(body):
     fact = parsed.find('div', id='content')
     return fact.text.strip()
 
+def parse_news(body):
+    all_headlines = []
+    parsed = BeautifulSoup(body, 'html5lib')
+    for title in parsed.find_all('title'):
+        all_headlines.append(title.text.strip())
+    return random.choice(all_headlines)
+
 def get_fact():
     response = requests.get('http://unkno.com')
     return parse_fact(response.text)
 
-def process(path):
-    args = path.strip("/").split("/")
+def get_news():
+    response = requests.get('http://rss.cnn.com/rss/cnn_topstories.rss')
+    return parse_news(response.text)
 
-    fact = get_fact()
+def resolve_path(path):
 
-    meme = meme_it(fact)
+    p = path.strip('/').split('/')
 
-    return meme
+    if len(p) == 2:
+        info = p[0]
+        meme = p[1]
+
+        if (info == 'fact' or info == 'news') and (meme == 'buzz' or meme == 'aliens'):
+            if info == 'fact':
+                fact = get_fact()
+            else:
+                fact = get_news()
+
+            meme = meme_it(fact, meme)
+            return meme
+            
+        else:
+            raise NameError
+
+    else:
+        raise NameError
+
+
 
 def application(environ, start_response):
     headers = [('Content-type', 'image/jpeg')]
@@ -138,14 +172,17 @@ def application(environ, start_response):
         if path is None:
             raise NameError
 
-        body = process(path)
+        body = resolve_path(path)
         status = "200 OK"
+
     except NameError:
         status = "404 Not Found"
         body = "<h1>Not Found</h1>"
+
     except Exception:
         status = "500 Internal Server Error"
         body = "<h1> Internal Server Error</h1>"
+
     finally:
         headers.append(('Content-length', str(len(body))))
         start_response(status, headers)
